@@ -5,7 +5,7 @@ Data Analysis Tools for hipo4 data format.
 
 Examples are given for running in interactive ROOT sessions and ROOT-Jupyter notebooks.
 
-## New : from version 1.9.0 an external `hipo` install is required before building clas12root
+From version 1.9.0 an external `hipo` install is required before building clas12root
 
 We now use an external `hipo` repository. This must be pointed at with the environment variable `$HIPO` when installing.
 
@@ -27,11 +27,7 @@ clas12root provides an interface to the clas12-qadb c++ code to allow skimming o
 
 To simplify installation of the dependencies, ccdb, rcdb, qadb are now includes as submodules tagged to specific releases. Now when you clone with   --recurse-submodules all 3 plus lz4 will also be downloaded into your clas12root directory. If you already have your own versions of these you may ignore these and just set the required paths to your own installation.
 
-It is still required to build ccdb with scons after you have cloned it (before running installC12Root). You will need to make sure you have the necessary depndencies for ccdb on your system. If you do not and do not want to use ccdb in anycase you may just not set the CCDB_HOME enviroment variable.  [https://github.com/JeffersonLab/ccdb]
-
-      cd ccdb
-      source environment.csh
-      scons
+It is still required to build ccdb with CMake after you have cloned it (before running installC12Root); see below for example CMake commands. You will need to make sure you have the necessary depndencies for ccdb on your system. If you do not and do not want to use ccdb in anycase you may just not set the CCDB_HOME enviroment variable.  [https://github.com/JeffersonLab/ccdb]
 
 ccdb is prone to giving warnings when you try and compile ROOT scripts via macros. To get rid of these wanrings you may need to copy the Directory.h file from ccdb_patch.
 
@@ -74,6 +70,7 @@ setenv IGUANA /Where/Is/Iguana
 setenv ROOT_INCLUDE_PATH ${HIPO}/include:${IGUANA}/include:${ROOT_INCLUDE_PATH}
 #and if you are using clas12root in other programmes it may help to include it
 setenv ROOT_INCLUDE_PATH ${CLAS12ROOT}/Clas12Banks:${CLAS12ROOT}/Clas12Root:${CLAS12ROOT}/hipo4:${ROOT_INCLUDE_PATH}
+setenv LD_LIBRARY_PATH $CLAS12ROOT/lib:$LD_LIBRARY_PATH
 ```
 
 or for bash
@@ -95,6 +92,7 @@ export IGUANA=/Where/Is/Iguana
 export ROOT_INCLUDE_PATH=${HIPO}/include:${IGUANA}/include:${ROOT_INCLUDE_PATH}
 #and if you are using clas12root in other programmes it may help to include it
 export ROOT_INCLUDE_PATH=${CLAS12ROOT}/Clas12Banks:${CLAS12ROOT}/Clas12Root:${CLAS12ROOT}/hipo4:${ROOT_INCLUDE_PATH}
+export LD_LIBRARY_PATH=$CLAS12ROOT/lib:$LD_LIBRARY_PATH
 ```
 
 ## To install
@@ -111,14 +109,21 @@ setenv CXX  /myz/c++
 ```
 Or just set the paths to CC and CXX directly.
 
-Remember to build ccdb with scons if you are using it before installing clas12root. If you alredy have CCDB_HOME set to somewhere else on your system then you will not need to do this.
+Remember to build ccdb with CMake if you are using it before installing clas12root. If you alredy have CCDB_HOME set to somewhere else on your system then you will not need to do this. For example,
 
 ```bash
-cd ccdb
-source environment.csh
-scons
-cd..
+cmake -S ccdb -B ccdb_build --install-prefix $CCDB_HOME  # where CCDB_HOME is your preferred installation location for CCDB
+cmake --build ccdb_build
+cmake --install ccdb_build
+```
 
+New 
+
+cmake was modernised. You will now need to make sure $CLAS12ROOT/lib is in your LD_LIBRARY_PATH. Report any issues to the forum.
+
+Then build clas12root:
+
+```bash
 installC12Root
 ```
 
@@ -480,24 +485,27 @@ Where ccdbElSF is a std::vector<std::vector<double>> and so you can access the e
 
 clas12root can use the Quality Assurance database .json files found at https://github.com/c-dilks/clas12-qadb/tree/master to reject events that have been identified as failing to meet certain requirements. This is implemented in an analysis using the clas12reader with the functions
 
-     c12.db()->qadb_requireOkForAsymmetry(true);
-     c12.db()->qadb_requireGolden(true);
-     c12.db()->qadb_addQARequirement("MarginalOutlier");
-     c12.db()->qadb_addQARequirement("TotalOutlier");
-     c12.applyQA();
+      c12.db().applyQA(GETPASSSTRINGHERE);//GETPASSSTRINGHERE="latest", "pass1, "pass2",...
+      c12.db().qadb_addQARequirement("MarginalOutlier");
+      c12.db().qadb_addQARequirement("TotalOutlier");
+      c12.db().qadb_addQARequirement("TerminalOutlier");
+      c12.db().qadb_addQARequirement("MarginalOutlier");
+      c12.db().qadb_addQARequirement("SectorLoss");
+      c12.db().qadb_addQARequirement("LowLiveTime");
 
 
 Or in case you use HipoChain (also for when running PROOF/HipoSelector)
 
-      auto c12=chain.GetC12Reader();
-
-      c12->db()->qadb_requireOkForAsymmetry(true);
-      c12->db()->qadb_requireGolden(true);
-      c12->db()->qadb_addQARequirement("MarginalOutlier");
-      c12->db()->qadb_addQARequirement("TotalOutlier");
-      c12->applyQA(); 
-    
-where requireOkForAsymmetry(true) requires only events that were identified as suitable for asymmetry calculations, and requireGolden(true) requires only events without any defects. addQARequirement("Requirement") allows to reject events that fail to meet the specified requirement. These can be:
+      auto config_c12=chain.GetC12Reader();
+      config_c12->applyQA(GETPASSSTRINGHERE);//GETPASSSTRINGHERE="latest", "pass1, "pass2",...
+      config_c12->db()->qadb_addQARequirement("MarginalOutlier");
+      config_c12->db()->qadb_addQARequirement("TotalOutlier");
+      config_c12->db()->qadb_addQARequirement("TerminalOutlier");
+      config_c12->db()->qadb_addQARequirement("MarginalOutlier");
+      config_c12->db()->qadb_addQARequirement("SectorLoss");
+      config_c12->db()->qadb_addQARequirement("LowLiveTime");
+  
+addQARequirement("Requirement") allows to reject events that fail to meet the specified requirement. These can be:
 
     TotalOutlier: outlier N/F, but not terminal, marginal, or sector loss
     TerminalOutlier: outlier N/F of first or last file of run
